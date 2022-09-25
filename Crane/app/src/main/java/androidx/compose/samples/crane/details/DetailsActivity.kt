@@ -19,6 +19,7 @@ package androidx.compose.samples.crane.details
 import android.content.Context
 import android.content.Intent
 import android.os.Bundle
+import android.util.Log
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
 import androidx.annotation.VisibleForTesting
@@ -31,7 +32,9 @@ import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.navigationBarsPadding
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.statusBarsPadding
 import androidx.compose.material.Button
 import androidx.compose.material.ButtonDefaults
 import androidx.compose.material.CircularProgressIndicator
@@ -39,32 +42,30 @@ import androidx.compose.material.MaterialTheme
 import androidx.compose.material.Surface
 import androidx.compose.material.Text
 import androidx.compose.runtime.Composable
-import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
-import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.produceState
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
-import androidx.compose.runtime.saveable.rememberSaveable
-import androidx.compose.runtime.setValue
 import androidx.compose.samples.crane.base.Result
+import androidx.compose.samples.crane.data.City
 import androidx.compose.samples.crane.data.ExploreModel
 import androidx.compose.samples.crane.ui.CraneTheme
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
-import androidx.compose.ui.viewinterop.AndroidView
 import androidx.core.view.WindowCompat
 import androidx.lifecycle.viewmodel.compose.viewModel
-import com.google.accompanist.insets.ProvideWindowInsets
-import com.google.accompanist.insets.navigationBarsPadding
-import com.google.accompanist.insets.statusBarsPadding
-import com.google.android.libraries.maps.CameraUpdateFactory
-import com.google.android.libraries.maps.MapView
-import com.google.android.libraries.maps.model.LatLng
-import com.google.maps.android.ktx.addMarker
-import com.google.maps.android.ktx.awaitMap
+import com.google.android.gms.maps.CameraUpdateFactory
+import com.google.android.gms.maps.model.CameraPosition
+import com.google.android.gms.maps.model.LatLng
+import com.google.maps.android.compose.CameraPositionState
+import com.google.maps.android.compose.GoogleMap
+import com.google.maps.android.compose.MapProperties
+import com.google.maps.android.compose.MapUiSettings
+import com.google.maps.android.compose.Marker
+import com.google.maps.android.compose.MarkerState
+import com.google.maps.android.compose.rememberCameraPositionState
 import dagger.hilt.android.AndroidEntryPoint
 import kotlinx.coroutines.launch
 
@@ -83,23 +84,23 @@ fun createDetailsActivityIntent(context: Context, item: ExploreModel): Intent {
 
 @AndroidEntryPoint
 class DetailsActivity : ComponentActivity() {
-
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
 
         WindowCompat.setDecorFitsSystemWindows(window, false)
 
         setContent {
-            ProvideWindowInsets {
-                CraneTheme {
-                    Surface {
-                        DetailsScreen(
-                            onErrorLoading = { finish() },
-                            modifier = Modifier
-                                .statusBarsPadding()
-                                .navigationBarsPadding()
-                        )
-                    }
+            CraneTheme {
+                Surface {
+                    DetailsScreen(
+                        onErrorLoading = {
+                            Log.e("DetailsActivity", "Error loading screen")
+                            finish()
+                        },
+                        modifier = Modifier
+                            .statusBarsPadding()
+                            .navigationBarsPadding()
+                    )
                 }
             }
         }
@@ -107,7 +108,7 @@ class DetailsActivity : ComponentActivity() {
 }
 
 private data class DetailsScreenUiState(
-    val exploreModel: ExploreModel? = null,
+    val city: City? = null,
     val isLoading: Boolean = false,
     val throwError: Boolean = false
 )
@@ -125,7 +126,7 @@ fun DetailsScreen(
         initialValue = DetailsScreenUiState(isLoading = true)
     ) {
         val cityDetailsResult = viewModel.cityDetails
-        value = if (cityDetailsResult is Result.Success<ExploreModel>) {
+        value = if (cityDetailsResult is Result.Success<City>) {
             DetailsScreenUiState(cityDetailsResult.data)
         } else {
             DetailsScreenUiState(throwError = true)
@@ -134,8 +135,8 @@ fun DetailsScreen(
 
     Crossfade(targetState = uiState, modifier) { currentUiState ->
         when {
-            currentUiState.exploreModel != null -> {
-                DetailsContent(currentUiState.exploreModel, Modifier.fillMaxSize())
+            currentUiState.city != null -> {
+                DetailsContent(currentUiState.city, Modifier.fillMaxSize())
             }
             currentUiState.isLoading -> {
                 Box(Modifier.fillMaxSize()) {
@@ -154,81 +155,113 @@ fun DetailsScreen(
 
 @Composable
 fun DetailsContent(
-    exploreModel: ExploreModel,
+    city: City,
     modifier: Modifier = Modifier
 ) {
     Column(modifier = modifier, verticalArrangement = Arrangement.Center) {
         Spacer(Modifier.height(32.dp))
         Text(
             modifier = Modifier.align(Alignment.CenterHorizontally),
-            text = exploreModel.city.nameToDisplay,
+            text = city.nameToDisplay,
             style = MaterialTheme.typography.h4,
             textAlign = TextAlign.Center
         )
-        Text(
-            modifier = Modifier.align(Alignment.CenterHorizontally),
-            text = exploreModel.description,
-            style = MaterialTheme.typography.h6,
-            textAlign = TextAlign.Center
-        )
         Spacer(Modifier.height(16.dp))
-        CityMapView(exploreModel.city.latitude, exploreModel.city.longitude)
+        CityMapView(city.latitude, city.longitude)
     }
 }
 
+/**
+ * CityMapView
+ * A composable that shows a map centered on a location with a marker.
+ */
 @Composable
-private fun CityMapView(latitude: String, longitude: String) {
-    // The MapView lifecycle is handled by this composable. As the MapView also needs to be updated
-    // with input from Compose UI, those updates are encapsulated into the MapViewContainer
-    // composable. In this way, when an update to the MapView happens, this composable won't
-    // recompose and the MapView won't need to be recreated.
-    val mapView = rememberMapViewWithLifecycle()
-    MapViewContainer(mapView, latitude, longitude)
-}
-
-@Composable
-private fun MapViewContainer(
-    map: MapView,
+fun CityMapView(
     latitude: String,
-    longitude: String
+    longitude: String,
+    onMapLoadedWithCameraState: ((CameraPositionState) -> Unit)? = null, // Exposed for use in tests
+    onZoomChanged: (() -> Unit)? = null
 ) {
-    val cameraPosition = remember(latitude, longitude) {
+    val cityLocation = remember(latitude, longitude) {
         LatLng(latitude.toDouble(), longitude.toDouble())
     }
 
-    LaunchedEffect(map) {
-        val googleMap = map.awaitMap()
-        googleMap.addMarker { position(cameraPosition) }
-        googleMap.moveCamera(CameraUpdateFactory.newLatLng(cameraPosition))
+    val cameraPositionState = rememberCameraPositionState(cityLocation.toString()) {
+        position = CameraPosition.fromLatLngZoom(
+            cityLocation,
+            InitialZoom
+        )
     }
 
-    var zoom by rememberSaveable(map) { mutableStateOf(InitialZoom) }
-    ZoomControls(zoom) {
-        zoom = it.coerceIn(MinZoom, MaxZoom)
+    MapViewContainer(
+        cameraPositionState = cameraPositionState,
+        onMapLoaded = {
+            onMapLoadedWithCameraState?.invoke(cameraPositionState)
+        },
+        onZoomChanged = onZoomChanged
+    ) {
+        Marker(state = MarkerState(position = cityLocation))
+    }
+}
+
+/**
+ * MapViewContainer
+ * A MapView styled with custom zoom controls.
+ */
+@Composable
+fun MapViewContainer(
+    cameraPositionState: CameraPositionState,
+    onMapLoaded: () -> Unit = {},
+    onZoomChanged: (() -> Unit)? = null,
+    content: (@Composable () -> Unit)? = null
+) {
+    val mapProperties = remember {
+        MapProperties(
+            maxZoomPreference = MaxZoom,
+            minZoomPreference = MinZoom,
+        )
     }
 
-    val coroutineScope = rememberCoroutineScope()
-    AndroidView({ map }) { mapView ->
-        // Reading zoom so that AndroidView recomposes when it changes. The getMapAsync lambda
-        // is stored for later, Compose doesn't recognize state reads
-        val mapZoom = zoom
-        coroutineScope.launch {
-            val googleMap = mapView.awaitMap()
-            googleMap.setZoom(mapZoom)
-            // Move camera to the same place to trigger the zoom update
-            googleMap.moveCamera(CameraUpdateFactory.newLatLng(cameraPosition))
-        }
+    val mapUiSettings = remember {
+        // We are providing our own zoom controls so disable the built-in ones.
+        MapUiSettings(zoomControlsEnabled = false)
+    }
+
+    val animationScope = rememberCoroutineScope()
+    Column {
+        ZoomControls(
+            onZoomIn = {
+                animationScope.launch {
+                    cameraPositionState.animate(CameraUpdateFactory.zoomIn())
+                    onZoomChanged?.invoke()
+                }
+            },
+            onZoomOut = {
+                animationScope.launch {
+                    cameraPositionState.animate(CameraUpdateFactory.zoomOut())
+                    onZoomChanged?.invoke()
+                }
+            }
+        )
+
+        GoogleMap(
+            properties = mapProperties,
+            cameraPositionState = cameraPositionState,
+            uiSettings = mapUiSettings,
+            onMapLoaded = onMapLoaded,
+            content = content
+        )
     }
 }
 
 @Composable
 private fun ZoomControls(
-    zoom: Float,
-    onZoomChanged: (Float) -> Unit
+    onZoomIn: () -> Unit,
+    onZoomOut: () -> Unit
 ) {
     Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.Center) {
-        ZoomButton("-", onClick = { onZoomChanged(zoom * 0.8f) })
-        ZoomButton("+", onClick = { onZoomChanged(zoom * 1.2f) })
+        ZoomButton("-", onClick = onZoomOut)
+        ZoomButton("+", onClick = onZoomIn)
     }
 }
 

@@ -1,5 +1,5 @@
 #
-#  Copyright 2019 Google, Inc.
+#  Copyright 2022 Google, Inc.
 #
 #  Licensed under the Apache License, Version 2.0 (the "License");
 #  you may not use this file except in compliance with the License.
@@ -36,5 +36,5 @@ done < <(find $SAMPLE -type f \( -name "build.gradle*" -o -name "gradle-wrapper.
 for FILE in ${FILES[@]}; do
 	echo $(checksum_file $FILE) >> $RESULT_FILE
 done
-# Now sort the file so that it is
+# Now sort the file so that it is idempotent
 sort $RESULT_FILE -o $RESULT_FILE

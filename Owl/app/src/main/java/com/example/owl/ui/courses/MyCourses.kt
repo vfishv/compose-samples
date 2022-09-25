@@ -18,9 +18,12 @@ package com.example.owl.ui.courses
 
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
+import androidx.compose.foundation.layout.WindowInsets
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.statusBars
 import androidx.compose.foundation.layout.width
+import androidx.compose.foundation.layout.windowInsetsTopHeight
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.itemsIndexed
 import androidx.compose.foundation.shape.RoundedCornerShape
@@ -32,7 +35,6 @@ import com.example.owl.model.Course
 import com.example.owl.model.courses
 import com.example.owl.ui.common.CourseListItem
 import com.example.owl.ui.theme.BlueTheme
-import com.google.accompanist.insets.statusBarsHeight
 
 @Composable
 fun MyCourses(
@@ -42,13 +44,20 @@ fun MyCourses(
 ) {
     LazyColumn(modifier) {
         item {
-            Spacer(Modifier.statusBarsHeight())
+            Spacer(Modifier.windowInsetsTopHeight(WindowInsets.statusBars))
         }
         item {
             CoursesAppBar()
         }
-        itemsIndexed(courses) { index, course ->
-            MyCourse(course, index, selectCourse)
+        itemsIndexed(
+            items = courses,
+            key = { _, course -> course.id }
+        ) { index, course ->
+            MyCourse(
+                course = course,
+                index = index,
+                selectCourse = selectCourse
+            )
         }
     }
 }

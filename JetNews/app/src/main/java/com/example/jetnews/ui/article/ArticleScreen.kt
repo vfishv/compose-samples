@@ -19,33 +19,37 @@ package com.example.jetnews.ui.article
 import android.content.Context
 import android.content.Intent
 import android.content.res.Configuration.UI_MODE_NIGHT_YES
+import androidx.compose.foundation.Image
 import androidx.compose.foundation.layout.Row
-import androidx.compose.foundation.layout.Spacer
-import androidx.compose.foundation.layout.fillMaxWidth
-import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.padding
-import androidx.compose.material.AlertDialog
-import androidx.compose.material.Icon
-import androidx.compose.material.IconButton
-import androidx.compose.material.LocalContentColor
-import androidx.compose.material.MaterialTheme
-import androidx.compose.material.Scaffold
-import androidx.compose.material.Surface
-import androidx.compose.material.Text
-import androidx.compose.material.TextButton
+import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.lazy.LazyListState
+import androidx.compose.foundation.lazy.rememberLazyListState
+import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.ArrowBack
-import androidx.compose.material.icons.filled.Share
-import androidx.compose.material.icons.filled.ThumbUpOffAlt
+import androidx.compose.material3.AlertDialog
+import androidx.compose.material3.BottomAppBar
+import androidx.compose.material3.CenterAlignedTopAppBar
+import androidx.compose.material3.ExperimentalMaterial3Api
+import androidx.compose.material3.Icon
+import androidx.compose.material3.IconButton
+import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.Scaffold
+import androidx.compose.material3.Text
+import androidx.compose.material3.TextButton
+import androidx.compose.material3.TopAppBarDefaults
+import androidx.compose.material3.TopAppBarScrollBehavior
+import androidx.compose.material3.rememberTopAppBarState
 import androidx.compose.runtime.Composable
-import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
-import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
-import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.clip
+import androidx.compose.ui.input.nestedscroll.nestedScroll
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.res.stringResource
@@ -54,171 +58,143 @@ import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.dp
 import com.example.jetnews.R
 import com.example.jetnews.data.Result
-import com.example.jetnews.data.posts.PostsRepository
 import com.example.jetnews.data.posts.impl.BlockingFakePostsRepository
 import com.example.jetnews.data.posts.impl.post3
 import com.example.jetnews.model.Post
-import com.example.jetnews.ui.components.InsetAwareTopAppBar
-import com.example.jetnews.ui.home.BookmarkButton
 import com.example.jetnews.ui.theme.JetnewsTheme
-import com.example.jetnews.utils.produceUiState
-import com.example.jetnews.utils.supportWideScreen
-import com.google.accompanist.insets.navigationBarsPadding
-import kotlinx.coroutines.launch
+import com.example.jetnews.ui.utils.BookmarkButton
+import com.example.jetnews.ui.utils.FavoriteButton
+import com.example.jetnews.ui.utils.ShareButton
+import com.example.jetnews.ui.utils.TextSettingsButton
 import kotlinx.coroutines.runBlocking
 
 /**
- * Stateful Article Screen that manages state using [produceUiState]
+ * Stateless Article Screen that displays a single post adapting the UI to different screen sizes.
  *
- * @param postId (state) the post to show
- * @param postsRepository data source for this screen
- * @param onBack (event) request back navigation
+ * @param post (state) item to display
+ * @param showNavigationIcon (state) if the navigation icon should be shown
+ * @param onBack (event) request navigate back
+ * @param isFavorite (state) is this item currently a favorite
+ * @param onToggleFavorite (event) request that this post toggle it's favorite state
+ * @param lazyListState (state) the [LazyListState] for the article content
  */
-@Suppress("DEPRECATION") // allow ViewModelLifecycleScope call
+@OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun ArticleScreen(
-    postId: String?,
-    postsRepository: PostsRepository,
-    onBack: () -> Unit
+    post: Post,
+    isExpandedScreen: Boolean,
+    onBack: () -> Unit,
+    isFavorite: Boolean,
+    onToggleFavorite: () -> Unit,
+    modifier: Modifier = Modifier,
+    lazyListState: LazyListState = rememberLazyListState()
 ) {
-    val (post) = produceUiState(postsRepository, postId) {
-        getPost(postId)
+    var showUnimplementedActionDialog by rememberSaveable { mutableStateOf(false) }
+    if (showUnimplementedActionDialog) {
+        FunctionalityNotAvailablePopup { showUnimplementedActionDialog = false }
     }
-    // TODO: handle errors when the repository is capable of creating them
-    val postData = post.value.data ?: return
 
-    // [collectAsState] will automatically collect a Flow<T> and return a State<T> object that
-    // updates whenever the Flow emits a value. Collection is cancelled when [collectAsState] is
-    // removed from the composition tree.
-    val favorites by postsRepository.observeFavorites().collectAsState(setOf())
-    val isFavorite = favorites.contains(postId)
-
-    // Returns a [CoroutineScope] that is scoped to the lifecycle of [ArticleScreen]. When this
-    // screen is removed from composition, the scope will be cancelled.
-    val coroutineScope = rememberCoroutineScope()
-
-    ArticleScreen(
-        post = postData,
-        onBack = onBack,
-        isFavorite = isFavorite,
-        onToggleFavorite = {
-            coroutineScope.launch { postId?.let { postsRepository.toggleFavorite(postId) } }
-        }
-    )
+    Row(modifier.fillMaxSize()) {
+        val context = LocalContext.current
+        ArticleScreenContent(
+            post = post,
+            // Allow opening the Drawer if the screen is not expanded
+            navigationIconContent = {
+                if (!isExpandedScreen) {
+                    IconButton(onClick = onBack) {
+                        Icon(
+                            imageVector = Icons.Filled.ArrowBack,
+                            contentDescription = stringResource(R.string.cd_navigate_up),
+                            tint = MaterialTheme.colorScheme.primary
+                        )
+                    }
+                }
+            },
+            // Show the bottom bar if the screen is not expanded
+            bottomBarContent = {
+                if (!isExpandedScreen) {
+                    BottomAppBar(
+                        actions = {
+                            FavoriteButton(onClick = { showUnimplementedActionDialog = true })
+                            BookmarkButton(isBookmarked = isFavorite, onClick = onToggleFavorite)
+                            ShareButton(onClick = { sharePost(post, context) })
+                            TextSettingsButton(onClick = { showUnimplementedActionDialog = true })
+                        }
+                    )
+                }
+            },
+            lazyListState = lazyListState
+        )
+    }
 }
 
 /**
  * Stateless Article Screen that displays a single post.
  *
  * @param post (state) item to display
- * @param onBack (event) request navigate back
- * @param isFavorite (state) is this item currently a favorite
- * @param onToggleFavorite (event) request that this post toggle it's favorite state
+ * @param navigationIconContent (UI) content to show for the navigation icon
+ * @param bottomBarContent (UI) content to show for the bottom bar
  */
+@ExperimentalMaterial3Api
 @Composable
-fun ArticleScreen(
+private fun ArticleScreenContent(
     post: Post,
-    onBack: () -> Unit,
-    isFavorite: Boolean,
-    onToggleFavorite: () -> Unit
+    navigationIconContent: @Composable () -> Unit = { },
+    bottomBarContent: @Composable () -> Unit = { },
+    lazyListState: LazyListState = rememberLazyListState()
 ) {
-
-    var showDialog by rememberSaveable { mutableStateOf(false) }
-    if (showDialog) {
-        FunctionalityNotAvailablePopup { showDialog = false }
-    }
-
+    val topAppBarState = rememberTopAppBarState()
+    val scrollBehavior = TopAppBarDefaults.enterAlwaysScrollBehavior(topAppBarState)
     Scaffold(
         topBar = {
-            InsetAwareTopAppBar(
-                title = {
-                    Text(
-                        text = stringResource(id = R.string.article_published_in, formatArgs = arrayOf(post.publication?.name.orEmpty())),
-                        style = MaterialTheme.typography.subtitle2,
-                        color = LocalContentColor.current
-                    )
-                },
-                navigationIcon = {
-                    IconButton(onClick = onBack) {
-                        Icon(
-                            imageVector = Icons.Filled.ArrowBack,
-                            contentDescription = stringResource(R.string.cd_navigate_up)
-                        )
-                    }
-                }
+            TopAppBar(
+                title = post.publication?.name.orEmpty(),
+                navigationIconContent = navigationIconContent,
+                scrollBehavior = scrollBehavior
             )
         },
-        bottomBar = {
-            BottomBar(
-                post = post,
-                onUnimplementedAction = { showDialog = true },
-                isFavorite = isFavorite,
-                onToggleFavorite = onToggleFavorite
-            )
-        }
+        bottomBar = bottomBarContent
     ) { innerPadding ->
         PostContent(
             post = post,
             modifier = Modifier
+                .nestedScroll(scrollBehavior.nestedScrollConnection)
                 // innerPadding takes into account the top and bottom bar
-                .padding(innerPadding)
-                // offset content in landscape mode to account for the navigation bar
-                .navigationBarsPadding(bottom = false)
-                // center content in landscape mode
-                .supportWideScreen()
+                .padding(innerPadding),
+            state = lazyListState,
         )
     }
 }
 
-/**
- * Bottom bar for Article screen
- *
- * @param post (state) used in share sheet to share the post
- * @param onUnimplementedAction (event) called when the user performs an unimplemented action
- * @param isFavorite (state) if this post is currently a favorite
- * @param onToggleFavorite (event) request this post toggle it's favorite status
- */
+@OptIn(ExperimentalMaterial3Api::class)
 @Composable
-private fun BottomBar(
-    post: Post,
-    onUnimplementedAction: () -> Unit,
-    isFavorite: Boolean,
-    onToggleFavorite: () -> Unit
+private fun TopAppBar(
+    title: String,
+    navigationIconContent: @Composable () -> Unit,
+    scrollBehavior: TopAppBarScrollBehavior?,
+    modifier: Modifier = Modifier
 ) {
-    Surface(elevation = 8.dp) {
-        Row(
-            verticalAlignment = Alignment.CenterVertically,
-            modifier = Modifier
-                .navigationBarsPadding()
-                .height(56.dp)
-                .fillMaxWidth()
-        ) {
-            IconButton(onClick = onUnimplementedAction) {
-                Icon(
-                    imageVector = Icons.Filled.ThumbUpOffAlt,
-                    contentDescription = stringResource(R.string.cd_add_to_favorites)
+    CenterAlignedTopAppBar(
+        title = {
+            Row {
+                Image(
+                    painter = painterResource(id = R.drawable.icon_article_background),
+                    contentDescription = null,
+                    modifier = Modifier
+                        .clip(CircleShape)
+                        .size(36.dp)
+                )
+                Text(
+                    text = stringResource(R.string.published_in, title),
+                    style = MaterialTheme.typography.labelLarge,
+                    modifier = Modifier.padding(start = 8.dp)
                 )
             }
-            BookmarkButton(
-                isBookmarked = isFavorite,
-                onClick = onToggleFavorite
-            )
-            val context = LocalContext.current
-            IconButton(onClick = { sharePost(post, context) }) {
-                Icon(
-                    imageVector = Icons.Filled.Share,
-                    contentDescription = stringResource(R.string.cd_share)
-                )
-            }
-            Spacer(modifier = Modifier.weight(1f))
-            IconButton(onClick = onUnimplementedAction) {
-                Icon(
-                    painter = painterResource(R.drawable.ic_text_settings),
-                    contentDescription = stringResource(R.string.cd_text_settings)
-                )
-            }
-        }
-    }
+        },
+        navigationIcon = navigationIconContent,
+        scrollBehavior = scrollBehavior,
+        modifier = modifier
+    )
 }
 
 /**
@@ -233,7 +209,7 @@ private fun FunctionalityNotAvailablePopup(onDismiss: () -> Unit) {
         text = {
             Text(
                 text = stringResource(id = R.string.article_functionality_not_available),
-                style = MaterialTheme.typography.body2
+                style = MaterialTheme.typography.bodyLarge
             )
         },
         confirmButton = {
@@ -250,25 +226,46 @@ private fun FunctionalityNotAvailablePopup(onDismiss: () -> Unit) {
  * @param post to share
  * @param context Android context to show the share sheet in
  */
-private fun sharePost(post: Post, context: Context) {
+fun sharePost(post: Post, context: Context) {
     val intent = Intent(Intent.ACTION_SEND).apply {
         type = "text/plain"
         putExtra(Intent.EXTRA_TITLE, post.title)
         putExtra(Intent.EXTRA_TEXT, post.url)
     }
-    context.startActivity(Intent.createChooser(intent, context.getString(R.string.article_share_post)))
+    context.startActivity(
+        Intent.createChooser(
+            intent,
+            context.getString(R.string.article_share_post)
+        )
+    )
 }
 
 @Preview("Article screen")
 @Preview("Article screen (dark)", uiMode = UI_MODE_NIGHT_YES)
 @Preview("Article screen (big font)", fontScale = 1.5f)
-@Preview("Article screen (large screen)", device = Devices.PIXEL_C)
 @Composable
-fun PreviewArticle() {
+fun PreviewArticleDrawer() {
     JetnewsTheme {
         val post = runBlocking {
             (BlockingFakePostsRepository().getPost(post3.id) as Result.Success).data
         }
-        ArticleScreen(post, {}, false, {})
+        ArticleScreen(post, false, {}, false, {})
+    }
+}
+
+@Preview("Article screen navrail", device = Devices.PIXEL_C)
+@Preview(
+    "Article screen navrail (dark)",
+    uiMode = UI_MODE_NIGHT_YES,
+    device = Devices.PIXEL_C
+)
+@Preview("Article screen navrail (big font)", fontScale = 1.5f, device = Devices.PIXEL_C)
+@Composable
+fun PreviewArticleNavRail() {
+    JetnewsTheme {
+        val post = runBlocking {
+            (BlockingFakePostsRepository().getPost(post3.id) as Result.Success).data
+        }
+        ArticleScreen(post, true, {}, false, {})
     }
 }

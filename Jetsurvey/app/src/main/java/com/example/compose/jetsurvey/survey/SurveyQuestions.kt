@@ -16,6 +16,7 @@
 
 package com.example.compose.jetsurvey.survey
 
+import android.content.res.Configuration
 import androidx.annotation.StringRes
 import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.Image
@@ -35,26 +36,24 @@ import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.layout.wrapContentSize
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.selection.selectable
-import androidx.compose.material.Button
-import androidx.compose.material.ButtonDefaults
-import androidx.compose.material.Checkbox
-import androidx.compose.material.CheckboxDefaults
-import androidx.compose.material.ContentAlpha
-import androidx.compose.material.Icon
-import androidx.compose.material.LocalContentAlpha
-import androidx.compose.material.MaterialTheme
-import androidx.compose.material.OutlinedButton
-import androidx.compose.material.RadioButton
-import androidx.compose.material.RadioButtonDefaults
-import androidx.compose.material.Slider
-import androidx.compose.material.Surface
-import androidx.compose.material.Text
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.AddAPhoto
 import androidx.compose.material.icons.filled.ArrowDropDown
 import androidx.compose.material.icons.filled.SwapHoriz
+import androidx.compose.material3.Button
+import androidx.compose.material3.ButtonDefaults
+import androidx.compose.material3.Checkbox
+import androidx.compose.material3.CheckboxDefaults
+import androidx.compose.material3.Icon
+import androidx.compose.material3.LocalContentColor
+import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.OutlinedButton
+import androidx.compose.material3.RadioButton
+import androidx.compose.material3.RadioButtonDefaults
+import androidx.compose.material3.Slider
+import androidx.compose.material3.Surface
+import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
-import androidx.compose.runtime.CompositionLocalProvider
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
@@ -63,20 +62,24 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.graphics.luminance
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.dp
-import coil.compose.rememberImagePainter
+import coil.compose.AsyncImage
+import coil.request.ImageRequest
 import com.example.compose.jetsurvey.R
 import com.example.compose.jetsurvey.theme.JetsurveyTheme
+import com.example.compose.jetsurvey.theme.slightlyDeemphasizedAlpha
+import com.example.compose.jetsurvey.theme.stronglyDeemphasizedAlpha
 import com.google.accompanist.permissions.ExperimentalPermissionsApi
 import com.google.accompanist.permissions.MultiplePermissionsState
 import com.google.accompanist.permissions.rememberMultiplePermissionsState
 import java.text.SimpleDateFormat
-import java.util.Date
-import java.util.Locale
+import java.util.*
 
 @OptIn(ExperimentalPermissionsApi::class)
 @Composable
@@ -87,54 +90,27 @@ fun Question(
     onAnswer: (Answer<*>) -> Unit,
     onAction: (Int, SurveyActionType) -> Unit,
     onDoNotAskForPermissions: () -> Unit,
-    openSettings: () -> Unit,
     modifier: Modifier = Modifier
 ) {
     if (question.permissionsRequired.isEmpty()) {
         QuestionContent(question, answer, onAnswer, onAction, modifier)
     } else {
-        val permissionsContentModifier = modifier.padding(horizontal = 20.dp)
+        val multiplePermissionsState = rememberMultiplePermissionsState(
+            question.permissionsRequired
+        )
 
-        val multiplePermissionsState =
-            rememberMultiplePermissionsState(question.permissionsRequired)
-
-        when {
-            // If all permissions are granted, then show the question
-            multiplePermissionsState.allPermissionsGranted -> {
-                QuestionContent(question, answer, onAnswer, onAction, modifier)
-            }
-            // If user denied some permissions but a rationale should be shown or the user
-            // is going to be presented with the permission for the first time. Let's explain
-            // why we need the permission
-            multiplePermissionsState.shouldShowRationale ||
-                !multiplePermissionsState.permissionRequested ->
-                {
-                    if (!shouldAskPermissions) {
-                        PermissionsDenied(
-                            question.questionText,
-                            openSettings,
-                            permissionsContentModifier
-                        )
-                    } else {
-                        PermissionsRationale(
-                            question,
-                            multiplePermissionsState,
-                            onDoNotAskForPermissions,
-                            permissionsContentModifier
-                        )
-                    }
-                }
-            // If the criteria above hasn't been met, the user denied some permission.
-            else -> {
-                PermissionsDenied(question.questionText, openSettings, permissionsContentModifier)
-                // Trigger side-effect to not ask for permissions
-                LaunchedEffect(true) {
-                    onDoNotAskForPermissions()
-                }
-            }
+        if (multiplePermissionsState.allPermissionsGranted) {
+            QuestionContent(question, answer, onAnswer, onAction, modifier)
+        } else {
+            PermissionsRationale(
+                question,
+                multiplePermissionsState,
+                onDoNotAskForPermissions,
+                modifier.padding(horizontal = 20.dp)
+            )
         }
 
-        // If permissions are denied, inform the caller that can move to the next question
+        // If we cannot ask for permissions, inform the caller that can move to the next question
         if (!shouldAskPermissions) {
             LaunchedEffect(true) {
                 onAnswer(Answer.PermissionsDenied)
@@ -174,24 +150,6 @@ private fun PermissionsRationale(
 }
 
 @Composable
-private fun PermissionsDenied(
-    @StringRes title: Int,
-    openSettings: () -> Unit,
-    modifier: Modifier = Modifier
-) {
-    Column(modifier) {
-        Spacer(modifier = Modifier.height(32.dp))
-        QuestionTitle(title)
-        Spacer(modifier = Modifier.height(32.dp))
-        Text(stringResource(R.string.permissions_denied))
-        Spacer(modifier = Modifier.height(16.dp))
-        OutlinedButton(onClick = openSettings) {
-            Text(stringResource(R.string.open_settings))
-        }
-    }
-}
-
-@Composable
 private fun QuestionContent(
     question: Question,
     answer: Answer<*>?,
@@ -208,15 +166,15 @@ private fun QuestionContent(
             QuestionTitle(question.questionText)
             Spacer(modifier = Modifier.height(24.dp))
             if (question.description != null) {
-                CompositionLocalProvider(LocalContentAlpha provides ContentAlpha.medium) {
-                    Text(
-                        text = stringResource(id = question.description),
-                        style = MaterialTheme.typography.caption,
-                        modifier = Modifier
-                            .fillParentMaxWidth()
-                            .padding(bottom = 18.dp, start = 8.dp, end = 8.dp)
-                    )
-                }
+                Text(
+                    text = stringResource(id = question.description),
+                    color = MaterialTheme.colorScheme.onSurface
+                        .copy(alpha = stronglyDeemphasizedAlpha),
+                    style = MaterialTheme.typography.bodySmall,
+                    modifier = Modifier
+                        .fillParentMaxWidth()
+                        .padding(bottom = 18.dp, start = 8.dp, end = 8.dp)
+                )
             }
             when (question.answer) {
                 is PossibleAnswer.SingleChoice -> SingleChoiceQuestion(
@@ -279,22 +237,18 @@ private fun QuestionContent(
 
 @Composable
 private fun QuestionTitle(@StringRes title: Int) {
-    val backgroundColor = if (MaterialTheme.colors.isLight) {
-        MaterialTheme.colors.onSurface.copy(alpha = 0.04f)
-    } else {
-        MaterialTheme.colors.onSurface.copy(alpha = 0.06f)
-    }
     Row(
         modifier = Modifier
             .fillMaxWidth()
             .background(
-                color = backgroundColor,
+                color = MaterialTheme.colorScheme.inverseOnSurface,
                 shape = MaterialTheme.shapes.small
             )
     ) {
         Text(
             text = stringResource(id = title),
-            style = MaterialTheme.typography.subtitle1,
+            style = MaterialTheme.typography.titleMedium,
+            color = MaterialTheme.colorScheme.onSurface.copy(alpha = slightlyDeemphasizedAlpha),
             modifier = Modifier
                 .fillMaxWidth()
                 .padding(vertical = 24.dp, horizontal = 16.dp)
@@ -331,14 +285,14 @@ private fun SingleChoiceQuestion(
             val optionSelected = text == selectedOption
 
             val answerBorderColor = if (optionSelected) {
-                MaterialTheme.colors.primary.copy(alpha = 0.5f)
+                MaterialTheme.colorScheme.primary.copy(alpha = 0.5f)
             } else {
-                MaterialTheme.colors.onSurface.copy(alpha = 0.12f)
+                MaterialTheme.colorScheme.onSurface.copy(alpha = 0.12f)
             }
             val answerBackgroundColor = if (optionSelected) {
-                MaterialTheme.colors.primary.copy(alpha = 0.12f)
+                MaterialTheme.colorScheme.primary.copy(alpha = 0.12f)
             } else {
-                MaterialTheme.colors.background
+                MaterialTheme.colorScheme.background
             }
             Surface(
                 shape = MaterialTheme.shapes.small,
@@ -368,7 +322,7 @@ private fun SingleChoiceQuestion(
                         selected = optionSelected,
                         onClick = onClickHandle,
                         colors = RadioButtonDefaults.colors(
-                            selectedColor = MaterialTheme.colors.primary
+                            selectedColor = MaterialTheme.colorScheme.primary
                         )
                     )
                 }
@@ -405,14 +359,14 @@ private fun SingleChoiceIconQuestion(
             }
             val optionSelected = text == selectedOption
             val answerBorderColor = if (optionSelected) {
-                MaterialTheme.colors.primary.copy(alpha = 0.5f)
+                MaterialTheme.colorScheme.primary.copy(alpha = 0.5f)
             } else {
-                MaterialTheme.colors.onSurface.copy(alpha = 0.12f)
+                MaterialTheme.colorScheme.onSurface.copy(alpha = 0.12f)
             }
             val answerBackgroundColor = if (optionSelected) {
-                MaterialTheme.colors.primary.copy(alpha = 0.12f)
+                MaterialTheme.colorScheme.primary.copy(alpha = 0.12f)
             } else {
-                MaterialTheme.colors.background
+                MaterialTheme.colorScheme.background
             }
             Surface(
                 shape = MaterialTheme.shapes.small,
@@ -454,7 +408,7 @@ private fun SingleChoiceIconQuestion(
                         selected = optionSelected,
                         onClick = onClickHandle,
                         colors = RadioButtonDefaults.colors(
-                            selectedColor = MaterialTheme.colors.primary
+                            selectedColor = MaterialTheme.colorScheme.primary
                         )
                     )
                 }
@@ -462,6 +416,7 @@ private fun SingleChoiceIconQuestion(
         }
     }
 }
+
 @Composable
 private fun MultipleChoiceQuestion(
     possibleAnswer: PossibleAnswer.MultipleChoice,
@@ -477,14 +432,14 @@ private fun MultipleChoiceQuestion(
                 mutableStateOf(selectedOption ?: false)
             }
             val answerBorderColor = if (checkedState) {
-                MaterialTheme.colors.primary.copy(alpha = 0.5f)
+                MaterialTheme.colorScheme.primary.copy(alpha = 0.5f)
             } else {
-                MaterialTheme.colors.onSurface.copy(alpha = 0.12f)
+                MaterialTheme.colorScheme.onSurface.copy(alpha = 0.12f)
             }
             val answerBackgroundColor = if (checkedState) {
-                MaterialTheme.colors.primary.copy(alpha = 0.12f)
+                MaterialTheme.colorScheme.primary.copy(alpha = 0.12f)
             } else {
-                MaterialTheme.colors.background
+                MaterialTheme.colorScheme.background
             }
             Surface(
                 shape = MaterialTheme.shapes.small,
@@ -518,7 +473,7 @@ private fun MultipleChoiceQuestion(
                             onAnswerSelected(option.value, selected)
                         },
                         colors = CheckboxDefaults.colors(
-                            checkedColor = MaterialTheme.colors.primary
+                            checkedColor = MaterialTheme.colorScheme.primary
                         ),
                     )
                 }
@@ -542,14 +497,14 @@ private fun MultipleChoiceIconQuestion(
                 mutableStateOf(selectedOption ?: false)
             }
             val answerBorderColor = if (checkedState) {
-                MaterialTheme.colors.primary.copy(alpha = 0.5f)
+                MaterialTheme.colorScheme.primary.copy(alpha = 0.5f)
             } else {
-                MaterialTheme.colors.onSurface.copy(alpha = 0.12f)
+                MaterialTheme.colorScheme.onSurface.copy(alpha = 0.12f)
             }
             val answerBackgroundColor = if (checkedState) {
-                MaterialTheme.colors.primary.copy(alpha = 0.12f)
+                MaterialTheme.colorScheme.primary.copy(alpha = 0.12f)
             } else {
-                MaterialTheme.colors.background
+                MaterialTheme.colorScheme.background
             }
             Surface(
                 shape = MaterialTheme.shapes.small,
@@ -590,7 +545,7 @@ private fun MultipleChoiceIconQuestion(
                             onAnswerSelected(option.value.second, selected)
                         },
                         colors = CheckboxDefaults.colors(
-                            checkedColor = MaterialTheme.colors.primary
+                            checkedColor = MaterialTheme.colorScheme.primary
                         ),
                     )
                 }
@@ -643,17 +598,16 @@ private fun PhotoQuestion(
     OutlinedButton(
         onClick = { onAction(questionId, SurveyActionType.TAKE_PHOTO) },
         modifier = modifier,
+        shape = MaterialTheme.shapes.small,
         contentPadding = PaddingValues()
     ) {
         Column {
             if (answer != null && answer.result is SurveyActionResult.Photo) {
-                Image(
-                    painter = rememberImagePainter(
-                        data = answer.result.uri,
-                        builder = {
-                            crossfade(true)
-                        }
-                    ),
+                AsyncImage(
+                    model = ImageRequest.Builder(LocalContext.current)
+                        .data(answer.result.uri)
+                        .crossfade(true)
+                        .build(),
                     contentDescription = null,
                     modifier = Modifier
                         .fillMaxWidth()
@@ -686,6 +640,19 @@ private fun PhotoQuestion(
     }
 }
 
+/**
+ * Returns the start of today in milliseconds
+ */
+fun getDefaultDateInMillis(): Long {
+    val cal = Calendar.getInstance()
+    val year = cal.get(Calendar.YEAR)
+    val month = cal.get(Calendar.MONTH)
+    val date = cal.get(Calendar.DATE)
+    cal.clear()
+    cal.set(year, month, date)
+    return cal.timeInMillis
+}
+
 @Composable
 private fun DateQuestion(
     questionId: Int,
@@ -693,27 +660,33 @@ private fun DateQuestion(
     onAction: (Int, SurveyActionType) -> Unit,
     modifier: Modifier = Modifier
 ) {
-    val date = if (answer != null && answer.result is SurveyActionResult.Date) {
-        answer.result.date
+    val timestamp = if (answer != null && answer.result is SurveyActionResult.Date) {
+        answer.result.dateMillis
     } else {
-        SimpleDateFormat(simpleDateFormatPattern, Locale.getDefault()).format(Date())
+        getDefaultDateInMillis()
     }
+
+    // All times are stored in UTC, so generate the display from UTC also
+    val dateFormat = SimpleDateFormat(simpleDateFormatPattern, Locale.getDefault())
+    dateFormat.timeZone = TimeZone.getTimeZone("UTC")
+    val dateString = dateFormat.format(timestamp)
+
     Button(
         onClick = { onAction(questionId, SurveyActionType.PICK_DATE) },
         colors = ButtonDefaults.buttonColors(
-            backgroundColor = MaterialTheme.colors.onPrimary,
-            contentColor = MaterialTheme.colors.onSecondary
+            containerColor = MaterialTheme.colorScheme.surface,
+            contentColor = MaterialTheme.colorScheme.onSurface
+                .copy(alpha = slightlyDeemphasizedAlpha),
         ),
         shape = MaterialTheme.shapes.small,
         modifier = modifier
             .padding(vertical = 20.dp)
             .height(54.dp),
-        elevation = ButtonDefaults.elevation(0.dp),
-        border = BorderStroke(1.dp, MaterialTheme.colors.onSurface.copy(alpha = 0.12f))
+        border = BorderStroke(1.dp, MaterialTheme.colorScheme.onSurface.copy(alpha = 0.12f))
 
     ) {
         Text(
-            text = date,
+            text = dateString,
             modifier = Modifier
                 .fillMaxWidth()
                 .weight(1.8f)
@@ -731,7 +704,7 @@ private fun DateQuestion(
 @Composable
 private fun PhotoDefaultImage(
     modifier: Modifier = Modifier,
-    lightTheme: Boolean = MaterialTheme.colors.isLight
+    lightTheme: Boolean = LocalContentColor.current.luminance() < 0.5f,
 ) {
     val assetId = if (lightTheme) {
         R.drawable.ic_selfie_light
@@ -773,7 +746,7 @@ private fun SliderQuestion(
     Row {
         Text(
             text = stringResource(id = possibleAnswer.startText),
-            style = MaterialTheme.typography.caption,
+            style = MaterialTheme.typography.bodySmall,
             textAlign = TextAlign.Start,
             modifier = Modifier
                 .fillMaxWidth()
@@ -781,7 +754,7 @@ private fun SliderQuestion(
         )
         Text(
             text = stringResource(id = possibleAnswer.neutralText),
-            style = MaterialTheme.typography.caption,
+            style = MaterialTheme.typography.bodySmall,
             textAlign = TextAlign.Center,
             modifier = Modifier
                 .fillMaxWidth()
@@ -789,7 +762,7 @@ private fun SliderQuestion(
         )
         Text(
             text = stringResource(id = possibleAnswer.endText),
-            style = MaterialTheme.typography.caption,
+            style = MaterialTheme.typography.bodySmall,
             textAlign = TextAlign.End,
             modifier = Modifier
                 .fillMaxWidth()
@@ -815,14 +788,37 @@ fun QuestionPreview() {
         description = R.string.select_one
     )
     JetsurveyTheme {
-        Question(
-            question = question,
-            shouldAskPermissions = true,
-            answer = null,
-            onAnswer = {},
-            onAction = { _, _ -> },
-            onDoNotAskForPermissions = {},
-            openSettings = {}
-        )
+        Surface {
+            Question(
+                question = question,
+                shouldAskPermissions = true,
+                answer = null,
+                onAnswer = {},
+                onAction = { _, _ -> },
+                onDoNotAskForPermissions = {}
+            )
+        }
+    }
+}
+
+@Preview(name = "Photo Question Light", uiMode = Configuration.UI_MODE_NIGHT_NO)
+@Preview(name = "Photo Question Dark", uiMode = Configuration.UI_MODE_NIGHT_YES)
+@Composable
+fun PhotoQuestionPreview() {
+    JetsurveyTheme {
+        Surface {
+            PhotoQuestion(questionId = 1, answer = null, onAction = { _, _ -> })
+        }
+    }
+}
+
+@Preview(name = "Photo Question Light", uiMode = Configuration.UI_MODE_NIGHT_NO)
+@Preview(name = "Photo Question Dark", uiMode = Configuration.UI_MODE_NIGHT_YES)
+@Composable
+fun DateQuestionPreview() {
+    JetsurveyTheme {
+        Surface {
+            DateQuestion(questionId = 1, answer = null, onAction = { _, _ -> })
+        }
     }
 }

@@ -18,16 +18,16 @@ package com.example.jetnews.ui.home
 
 import android.content.res.Configuration.UI_MODE_NIGHT_YES
 import androidx.compose.foundation.Image
-import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
-import androidx.compose.material.Card
-import androidx.compose.material.MaterialTheme
-import androidx.compose.material.Surface
-import androidx.compose.material.Text
+import androidx.compose.material3.Card
+import androidx.compose.material3.ExperimentalMaterial3Api
+import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.Surface
+import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.layout.ContentScale
@@ -35,13 +35,20 @@ import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.tooling.preview.Preview
+import androidx.compose.ui.tooling.preview.PreviewParameter
+import androidx.compose.ui.tooling.preview.PreviewParameterProvider
 import androidx.compose.ui.unit.dp
 import com.example.jetnews.R
 import com.example.jetnews.data.posts.impl.post1
+import com.example.jetnews.data.posts.impl.post2
+import com.example.jetnews.data.posts.impl.post3
+import com.example.jetnews.data.posts.impl.post4
+import com.example.jetnews.data.posts.impl.post5
 import com.example.jetnews.model.Post
 import com.example.jetnews.model.PostAuthor
 import com.example.jetnews.ui.theme.JetnewsTheme
 
+@OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun PostCardPopular(
     post: Post,
@@ -49,11 +56,12 @@ fun PostCardPopular(
     modifier: Modifier = Modifier
 ) {
     Card(
+        onClick = { navigateToArticle(post.id) },
         shape = MaterialTheme.shapes.medium,
-        modifier = modifier.size(280.dp, 240.dp)
+        modifier = modifier
+            .size(280.dp, 240.dp)
     ) {
-        Column(modifier = Modifier.clickable(onClick = { navigateToArticle(post.id) })) {
-
+        Column {
             Image(
                 painter = painterResource(post.imageId),
                 contentDescription = null, // decorative
@@ -66,7 +74,7 @@ fun PostCardPopular(
             Column(modifier = Modifier.padding(16.dp)) {
                 Text(
                     text = post.title,
-                    style = MaterialTheme.typography.h6,
+                    style = MaterialTheme.typography.headlineSmall,
                     maxLines = 2,
                     overflow = TextOverflow.Ellipsis
                 )
@@ -74,7 +82,7 @@ fun PostCardPopular(
                     text = post.metadata.author.name,
                     maxLines = 1,
                     overflow = TextOverflow.Ellipsis,
-                    style = MaterialTheme.typography.body2
+                    style = MaterialTheme.typography.bodyMedium
                 )
 
                 Text(
@@ -85,7 +93,7 @@ fun PostCardPopular(
                             post.metadata.readTimeMinutes
                         )
                     ),
-                    style = MaterialTheme.typography.body2
+                    style = MaterialTheme.typography.bodySmall
                 )
             }
         }
@@ -95,17 +103,21 @@ fun PostCardPopular(
 @Preview("Regular colors")
 @Preview("Dark colors", uiMode = UI_MODE_NIGHT_YES)
 @Composable
-fun PreviewPostCardPopular() {
+fun PreviewPostCardPopular(
+    @PreviewParameter(PostPreviewParameterProvider::class, limit = 1) post: Post
+) {
     JetnewsTheme {
         Surface {
-            PostCardPopular(post1, {})
+            PostCardPopular(post, {})
         }
     }
 }
 
 @Preview("Regular colors, long text")
 @Composable
-fun PreviewPostCardPopularLongText() {
+fun PreviewPostCardPopularLongText(
+    @PreviewParameter(PostPreviewParameterProvider::class, limit = 1) post: Post
+) {
     val loremIpsum =
         """
         Lorem ipsum dolor sit amet, consectetur adipiscing elit. Cras ullamcorper pharetra massa,
@@ -118,9 +130,9 @@ fun PreviewPostCardPopularLongText() {
     JetnewsTheme {
         Surface {
             PostCardPopular(
-                post1.copy(
+                post.copy(
                     title = "Title$loremIpsum",
-                    metadata = post1.metadata.copy(
+                    metadata = post.metadata.copy(
                         author = PostAuthor("Author: $loremIpsum"),
                         readTimeMinutes = Int.MAX_VALUE
                     )
@@ -129,4 +141,28 @@ fun PreviewPostCardPopularLongText() {
             )
         }
     }
+}
+
+/**
+ * Provides sample [Post] instances for Composable Previews.
+ *
+ * When creating a Composable Preview using @Preview, you can pass sample data
+ * by annotating a parameter with @PreviewParameter:
+ *
+ * ```
+ * @Preview
+ * @Composable
+ * fun MyPreview(@PreviewParameter(PostPreviewParameterProvider::class, limit = 2) post: Post) {
+ *   MyComposable(post)
+ * }
+ * ```
+ *
+ * In this simple app we just return the hard-coded posts. When the app
+ * would be more complex - e.g. retrieving the posts from a server - this would
+ * be the right place to instantiate dummy instances.
+ */
+class PostPreviewParameterProvider : PreviewParameterProvider<Post> {
+    override val values = sequenceOf(
+        post1, post2, post3, post4, post5
+    )
 }

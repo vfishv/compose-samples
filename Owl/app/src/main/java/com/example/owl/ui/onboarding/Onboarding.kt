@@ -29,8 +29,10 @@ import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.aspectRatio
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.navigationBarsPadding
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.layout.statusBarsPadding
 import androidx.compose.foundation.layout.wrapContentHeight
 import androidx.compose.foundation.layout.wrapContentSize
 import androidx.compose.foundation.rememberScrollState
@@ -73,8 +75,6 @@ import com.example.owl.ui.theme.OwlTheme
 import com.example.owl.ui.theme.YellowTheme
 import com.example.owl.ui.theme.pink500
 import com.example.owl.ui.utils.NetworkImage
-import com.google.accompanist.insets.navigationBarsPadding
-import com.google.accompanist.insets.statusBarsPadding
 import kotlin.math.max
 
 @Composable
@@ -181,7 +181,7 @@ private fun topicChipTransition(topicSelected: Boolean): TopicChipTransition {
     val transition = updateTransition(
         targetState = if (topicSelected) SelectionState.Selected else SelectionState.Unselected
     )
-    val corerRadius = transition.animateDp { state ->
+    val cornerRadius = transition.animateDp { state ->
         when (state) {
             SelectionState.Unselected -> 0.dp
             SelectionState.Selected -> 28.dp
@@ -200,7 +200,7 @@ private fun topicChipTransition(topicSelected: Boolean): TopicChipTransition {
         }
     }
     return remember(transition) {
-        TopicChipTransition(corerRadius, selectedAlpha, checkScale)
+        TopicChipTransition(cornerRadius, selectedAlpha, checkScale)
     }
 }
 

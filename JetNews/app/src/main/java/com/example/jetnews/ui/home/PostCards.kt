@@ -23,21 +23,15 @@ import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
-import androidx.compose.material.AlertDialog
-import androidx.compose.material.ContentAlpha
-import androidx.compose.material.Icon
-import androidx.compose.material.IconButton
-import androidx.compose.material.IconToggleButton
-import androidx.compose.material.LocalContentAlpha
-import androidx.compose.material.MaterialTheme
-import androidx.compose.material.Surface
-import androidx.compose.material.Text
 import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.filled.Bookmark
-import androidx.compose.material.icons.filled.BookmarkBorder
 import androidx.compose.material.icons.filled.MoreVert
+import androidx.compose.material3.AlertDialog
+import androidx.compose.material3.Icon
+import androidx.compose.material3.IconButton
+import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.Surface
+import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
-import androidx.compose.runtime.CompositionLocalProvider
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
@@ -49,14 +43,15 @@ import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.semantics.CustomAccessibilityAction
 import androidx.compose.ui.semantics.clearAndSetSemantics
 import androidx.compose.ui.semantics.customActions
-import androidx.compose.ui.semantics.onClick
 import androidx.compose.ui.semantics.semantics
+import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.dp
 import com.example.jetnews.R
 import com.example.jetnews.data.posts.impl.post3
 import com.example.jetnews.model.Post
 import com.example.jetnews.ui.theme.JetnewsTheme
+import com.example.jetnews.ui.utils.BookmarkButton
 
 @Composable
 fun AuthorAndReadTime(
@@ -64,18 +59,16 @@ fun AuthorAndReadTime(
     modifier: Modifier = Modifier
 ) {
     Row(modifier) {
-        CompositionLocalProvider(LocalContentAlpha provides ContentAlpha.medium) {
-            Text(
-                text = stringResource(
-                    id = R.string.home_post_min_read,
-                    formatArgs = arrayOf(
-                        post.metadata.author.name,
-                        post.metadata.readTimeMinutes
-                    )
-                ),
-                style = MaterialTheme.typography.body2
-            )
-        }
+        Text(
+            text = stringResource(
+                id = R.string.home_post_min_read,
+                formatArgs = arrayOf(
+                    post.metadata.author.name,
+                    post.metadata.readTimeMinutes
+                )
+            ),
+            style = MaterialTheme.typography.bodyMedium
+        )
     }
 }
 
@@ -92,7 +85,12 @@ fun PostImage(post: Post, modifier: Modifier = Modifier) {
 
 @Composable
 fun PostTitle(post: Post) {
-    Text(post.title, style = MaterialTheme.typography.subtitle1)
+    Text(
+        text = post.title,
+        style = MaterialTheme.typography.titleMedium,
+        maxLines = 3,
+        overflow = TextOverflow.Ellipsis,
+    )
 }
 
 @Composable
@@ -106,7 +104,6 @@ fun PostCardSimple(
     Row(
         modifier = Modifier
             .clickable(onClick = { navigateToArticle(post.id) })
-            .padding(16.dp)
             .semantics {
                 // By defining a custom action, we tell accessibility services that this whole
                 // composable has an action attached to it. The accessibility service can choose
@@ -119,8 +116,12 @@ fun PostCardSimple(
                 )
             }
     ) {
-        PostImage(post, Modifier.padding(end = 16.dp))
-        Column(modifier = Modifier.weight(1f)) {
+        PostImage(post, Modifier.padding(16.dp))
+        Column(
+            modifier = Modifier
+                .weight(1f)
+                .padding(vertical = 10.dp)
+        ) {
             PostTitle(post)
             AuthorAndReadTime(post)
         }
@@ -128,7 +129,9 @@ fun PostCardSimple(
             isBookmarked = isFavorite,
             onClick = onToggleFavorite,
             // Remove button semantics so action can be handled at row level
-            modifier = Modifier.clearAndSetSemantics {}
+            modifier = Modifier
+                .clearAndSetSemantics {}
+                .padding(vertical = 2.dp, horizontal = 6.dp)
         )
     }
 }
@@ -143,32 +146,28 @@ fun PostCardHistory(post: Post, navigateToArticle: (String) -> Unit) {
     ) {
         PostImage(
             post = post,
-            modifier = Modifier.padding(top = 16.dp, start = 16.dp, end = 16.dp)
+            modifier = Modifier.padding(16.dp)
         )
         Column(
             Modifier
                 .weight(1f)
-                .padding(top = 16.dp, bottom = 16.dp)
+                .padding(vertical = 12.dp)
         ) {
-            CompositionLocalProvider(LocalContentAlpha provides ContentAlpha.medium) {
-                Text(
-                    text = stringResource(id = R.string.home_post_based_on_history),
-                    style = MaterialTheme.typography.overline
-                )
-            }
+            Text(
+                text = stringResource(id = R.string.home_post_based_on_history),
+                style = MaterialTheme.typography.labelMedium
+            )
             PostTitle(post = post)
             AuthorAndReadTime(
                 post = post,
                 modifier = Modifier.padding(top = 4.dp)
             )
         }
-        CompositionLocalProvider(LocalContentAlpha provides ContentAlpha.medium) {
-            IconButton(onClick = { openDialog = true }) {
-                Icon(
-                    imageVector = Icons.Filled.MoreVert,
-                    contentDescription = stringResource(R.string.cd_more_actions)
-                )
-            }
+        IconButton(onClick = { openDialog = true }) {
+            Icon(
+                imageVector = Icons.Filled.MoreVert,
+                contentDescription = stringResource(R.string.cd_more_actions)
+            )
         }
     }
     if (openDialog) {
@@ -178,53 +177,26 @@ fun PostCardHistory(post: Post, navigateToArticle: (String) -> Unit) {
             title = {
                 Text(
                     text = stringResource(id = R.string.fewer_stories),
-                    style = MaterialTheme.typography.h6
+                    style = MaterialTheme.typography.titleLarge
                 )
             },
             text = {
                 Text(
                     text = stringResource(id = R.string.fewer_stories_content),
-                    style = MaterialTheme.typography.body1
+                    style = MaterialTheme.typography.bodyLarge
                 )
             },
             confirmButton = {
                 Text(
                     text = stringResource(id = R.string.agree),
-                    style = MaterialTheme.typography.button,
-                    color = MaterialTheme.colors.primary,
+                    style = MaterialTheme.typography.labelLarge,
+                    color = MaterialTheme.colorScheme.primary,
                     modifier = Modifier
                         .padding(15.dp)
                         .clickable { openDialog = false }
                 )
             }
         )
-    }
-}
-
-@Composable
-fun BookmarkButton(
-    isBookmarked: Boolean,
-    onClick: () -> Unit,
-    modifier: Modifier = Modifier
-) {
-    val clickLabel = stringResource(
-        if (isBookmarked) R.string.unbookmark else R.string.bookmark
-    )
-    CompositionLocalProvider(LocalContentAlpha provides ContentAlpha.medium) {
-        IconToggleButton(
-            checked = isBookmarked,
-            onCheckedChange = { onClick() },
-            modifier = modifier.semantics {
-                // Use a custom click label that accessibility services can communicate to the user.
-                // We only want to override the label, not the actual action, so for the action we pass null.
-                this.onClick(label = clickLabel, action = null)
-            }
-        ) {
-            Icon(
-                imageVector = if (isBookmarked) Icons.Filled.Bookmark else Icons.Filled.BookmarkBorder,
-                contentDescription = null // handled by click label of parent
-            )
-        }
     }
 }
 
